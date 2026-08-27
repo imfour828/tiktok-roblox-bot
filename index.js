@@ -12,7 +12,6 @@ const ROBLOX_UNIVERSE_ID = process.env.ROBLOX_UNIVERSE_ID || 'UNIVERSE_ID_CUA_BA
 const ROBLOX_API_KEY = process.env.ROBLOX_API_KEY || 'API_KEY_CUA_BAN';
 const TOPIC_NAME = 'TikTokLiveEvent';
 
-// Quản lý lưu trữ liên kết tài khoản (TikTok ID -> Roblox Username)
 const DATA_FILE = path.join(__dirname, 'linked_users.json');
 let linkedUsers = {};
 
@@ -25,11 +24,13 @@ if (fs.existsSync(DATA_FILE)) {
     }
 }
 
+// Ghi file bất đồng bộ để tránh nghẽn thread
 function saveLinkedUsers() {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(linkedUsers, null, 2), 'utf8');
+    fs.writeFile(DATA_FILE, JSON.stringify(linkedUsers, null, 2), 'utf8', (err) => {
+        if (err) console.error('❌ Lỗi ghi file linked_users:', err);
+    });
 }
 
-// Bộ đệm tích lũy lượt tap màn hình
 const userTapBuffer = {};
 
 // =============================================================
@@ -41,7 +42,7 @@ async function sendToRoblox(robloxUsername, expToAdd) {
     const payload = {
         message: JSON.stringify({
             input: robloxUsername,
-            expToAdd: expToAdd
+            expToAdd: Number(expToAdd)
         })
     };
 
@@ -50,7 +51,8 @@ async function sendToRoblox(robloxUsername, expToAdd) {
             headers: {
                 'x-api-key': ROBLOX_API_KEY,
                 'Content-Type': 'application/json'
-            }
+            },
+            timeout: 5000
         });
 
         if (response.status === 200) {
@@ -76,25 +78,25 @@ tiktok.on('chat', data => {
         if (parts.length >= 2) {
             const robloxUser = parts[1].trim();
 
-            linkedUsers[tiktokId] = robloxUser;
-            saveLinkedUsers();
+            if (robloxUser.length > 0) {
+                linkedUsers[tiktokId] = robloxUser;
+                saveLinkedUsers();
 
-            console.log(`🔗 [LINK THÀNH CÔNG] TikTok @${tiktokId} -> Roblox: ${robloxUser}`);
-
-            // Gọi NPC xuất hiện lên sàn nhảy ngay lần đầu tiên liên kết (+150 EXP)
-            sendToRoblox(robloxUser, 150);
+                console.log(`🔗 [LINK THÀNH CÔNG] TikTok @${tiktokId} -> Roblox: ${robloxUser}`);
+                sendToRoblox(robloxUser, 150);
+            }
         }
     }
 });
 
-// B. BẮT SỰ KIỆN TAP MÀN HÌNH (ĐỦ 100 TAPS MỚI CỘNG 1,000 EXP)
+// B. BẮT SỰ KIỆN TAP MÀN HÌNH (TÍCH LŨY 100 TAPS)
 tiktok.on('like', data => {
     const tiktokId = data.uniqueId;
     const robloxUser = linkedUsers[tiktokId];
 
     if (!robloxUser) return;
 
-    const tapCount = data.likeCount;
+    const tapCount = data.likeCount || 1;
     userTapBuffer[tiktokId] = (userTapBuffer[tiktokId] || 0) + tapCount;
 
     if (userTapBuffer[tiktokId] >= 100) {
@@ -104,18 +106,21 @@ tiktok.on('like', data => {
         console.log(`❤️ [TAP MÀN HÌNH] @${tiktokId} đạt ${hundredCount * 100} taps -> +${expGained} EXP cho ${robloxUser}`);
 
         sendToRoblox(robloxUser, expGained);
-        userTapBuffer[tiktokId] %= 100; // Giữ lại số dư chưa đủ 100 tap cho đợt sau
+        userTapBuffer[tiktokId] %= 100;
     }
 });
 
-// C. BẮT SỰ KIỆN TẶNG QUÀ (GIFT)
+// C. BẮT SỰ KIỆN TẶNG QUÀ (SỬA LỖI BỎ SÓT QUÀ ĐƠN)
 tiktok.on('gift', data => {
-    if (data.giftType === 1 && data.repeatEnd) {
-        const tiktokId = data.uniqueId;
-        const robloxUser = linkedUsers[tiktokId];
+    const tiktokId = data.uniqueId;
+    const robloxUser = linkedUsers[tiktokId];
 
-        if (!robloxUser) return;
+    if (!robloxUser) return;
 
+    // Kiểm tra nếu là quà chuỗi (streak) thì chờ đợt cuối, nếu quà đơn (giftType 0/không streak) thì xử lý ngay
+    const isStreakFinished = data.giftType === 1 ? data.repeatEnd : true;
+
+    if (isStreakFinished) {
         const giftName = data.giftName ? data.giftName.toLowerCase() : '';
         const count = data.repeatCount || 1;
         let totalExp = 0;
