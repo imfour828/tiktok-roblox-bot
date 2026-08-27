@@ -1,14 +1,1 @@
-{
-  "name": "tiktok-roblox-bot",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
-  },
-  "dependencies": {
-    "axios": "latest",
-    "express": "latest",
-    "tiktok-live-connector": "latest"
-  }
-}
+npm install tiktok-live-connector axios dotenv
