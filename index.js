@@ -52,7 +52,7 @@ async function sendToRoblox(robloxUsername, expToAdd) {
                 'x-api-key': ROBLOX_API_KEY,
                 'Content-Type': 'application/json'
             },
-            timeout: 60000
+            timeout: 10000
         });
 
         if (response.status === 200) {
