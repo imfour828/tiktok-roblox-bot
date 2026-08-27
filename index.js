@@ -8,7 +8,7 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server đang chạy trên cổng ${PORT}`));
 
 // 1. Thay tên tài khoản TikTok của bạn vào đây (ví dụ: "ten_tiktok_cua_ban")
-let tiktokUsername = "TREN_TIKTOK_CUA_BAN";
+let tiktokUsername = "imfour828";
 let tiktokLiveConnection = new WebcastPushConnection(tiktokUsername);
 
 let tapCounter = 0;
@@ -33,7 +33,7 @@ tiktokLiveConnection.on('like', async data => {
 // Hàm gửi tín hiệu vào game Roblox
 async function sendExpToRoblox(expAmount) {
     // 2. Thay Universe ID và API Key của bạn vào đây
-    const universeId = "ID_GAME_ROBLOX_CUA_BAN";
+    const universeId = "10762029519";
     const apiKey = "API_KEY_OPEN_CLOUD_CUA_BAN";
     const topic = "TikTokLiveEvent";
 
