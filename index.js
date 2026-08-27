@@ -1,4 +1,6 @@
-const { WebcastPushConnection } = require('tiktok-live-connector');
+const pkg = require('tiktok-live-connector');
+const WebcastPushConnection = pkg.WebcastPushConnection || pkg;
+
 const axios = require('axios');
 const express = require('express');
 const app = express();
@@ -7,7 +9,7 @@ app.get('/', (req, res) => res.send('TikTok Live Bot is running!'));
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server đang chạy trên cổng ${PORT}`));
 
-// 1. Thay tên tài khoản TikTok của bạn vào đây (ví dụ: "ten_tiktok_cua_ban")
+// Thay tên tài khoản TikTok của bạn vào đây
 let tiktokUsername = "imfour828";
 let tiktokLiveConnection = new WebcastPushConnection(tiktokUsername);
 
