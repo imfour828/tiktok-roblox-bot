@@ -24,7 +24,6 @@ if (fs.existsSync(DATA_FILE)) {
     }
 }
 
-// Ghi file bất đồng bộ để tránh nghẽn thread
 function saveLinkedUsers() {
     fs.writeFile(DATA_FILE, JSON.stringify(linkedUsers, null, 2), 'utf8', (err) => {
         if (err) console.error('❌ Lỗi ghi file linked_users:', err);
@@ -45,21 +44,13 @@ if (rawTarget.includes('tiktok.com/')) {
 
 console.log(`🎯 Đang chuẩn bị kết nối tới kênh TikTok: @${rawTarget}`);
 
-// Khởi tạo kết nối với cấu hình né lỗi Signature
+// Khởi tạo kết nối 
 const tiktokLiveConnection = new WebcastPushConnection(rawTarget, {
+    enableExtendedGiftInfo: true,
+    processInitialData: false,
     requestOptions: {
-        timeout: 15000,
-        headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        }
-    },
-    clientParams: {
-        app_language: 'vi-VN',
-        device_platform: 'web'
-    },
-    // Thêm các tùy chọn này để bypass cơ chế kiểm tra chữ ký gắt gao của thư viện
-    processInitialData: true,
-    enableExtendedGiftInfo: true
+        timeout: 10000
+    }
 });
 
 // =============================================================
@@ -83,13 +74,20 @@ async function sendToRoblox(eventData) {
 }
 
 // =============================================================
-// 4. LẮNG NGHE SỰ KIỆN TIKTOK LIVE (LIKE, GIFT, CHAT...)
+// 4. LẮNG NGHE SỰ KIỆN TIKTOK LIVE
 // =============================================================
-tiktokLiveConnection.connect().then(state => {
-    console.info(`✅ Đã kết nối thành công tới phòng Livestream ID: ${state.roomId}`);
-}).catch(err => {
-    console.error('❌ Lỗi kết nối TikTok Live:', err.message || err);
-});
+async function startBot() {
+    try {
+        const state = await tiktokLiveConnection.connect();
+        console.info(`✅ Đã kết nối thành công tới phòng Livestream ID: ${state.roomId}`);
+    } catch (err) {
+        console.error('❌ Không thể kết nối TikTok Live (Đang thử lại sau):', err.message || err);
+        // Tự động thử kết nối lại sau 10 giây nếu bị lỗi mạng/signature
+        setTimeout(startBot, 10000);
+    }
+}
+
+startBot();
 
 tiktokLiveConnection.on('like', data => {
     const eventData = {
@@ -126,3 +124,9 @@ tiktokLiveConnection.on('chat', data => {
         console.log(`🔗 Đã liên kết TikTok @${data.uniqueId} với Roblox ID: ${robloxId}`);
     }
 });
+
+// Bắt lỗi toàn cục để bot không bị crash sập ứng dụng
+tiktokLiveConnection.on('error', err => {
+    console.error('⚠️ Lỗi từ TikTok Connection:', err.message || err);
+});
+        
