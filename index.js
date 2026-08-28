@@ -5,11 +5,11 @@ const fs = require('fs');
 const path = require('path');
 
 // =============================================================
-// 1. CẤU HÌNH BIẾN MÔI TRƯỜNG & KHỞI TẠO
+// 1. CẤU HÌNH TRỰC TIẾP TRONG CODE
 // =============================================================
-const TIKTOK_USERNAME = process.env.TIKTOK_USERNAME || 'ten_kenh_tiktok_cua_ban';
-const ROBLOX_UNIVERSE_ID = process.env.ROBLOX_UNIVERSE_ID || 'UNIVERSE_ID_CUA_BAN';
-const ROBLOX_API_KEY = process.env.ROBLOX_API_KEY || 'API_KEY_CUA_BAN';
+const TIKTOK_USERNAME = 'https://www.tiktok.com/@imfour828/live';
+const ROBLOX_UNIVERSE_ID = '10762029519';
+const ROBLOX_API_KEY = 'xXo6zmfg9EWVaq/wviK9j3Z7BCUUycnTx7+BAvJPpcUguKL3ZXlKaGJHY2lPaUpTVXpJMU5pSXNJbXRwWkNJNkluTnBaeTB5TURJeExUQTNMVEV6VkRFNE9qVXhPalE1V2lJc0luUjVjQ0k2SWtwWFZDSjkuZXlKaGRXUWlPaUpTYjJKc2IzaEpiblJsY201aGJDSXNJbWx6Y3lJNklrTnNiM1ZrUVhWMGFHVnVkR2xqWVhScGIyNVRaWEoyYVdObElpd2lZbUZ6WlVGd2FVdGxlU0k2SW5oWWJ6WjZiV1puT1VWWFZtRnhMM2QyYVVzNWFqTmFOMEpEVlZWNVkyNVVlRGNyUWtGMlNsQndZMVZuZFV0TU15SXNJbTkzYm1WeVNXUWlPaUl4TVRVeU1EazFNak0xTlNJc0ltVjRjQ0k2TVRjNE56ZzNPRFk0Tnl3aWFXRjBJam94TnpnM09EYzFNRGczTENKdVltWWlPakUzT0RjNE56VXdPRGQ5LmNzU0ZFOHFMQkQ2MEdaT1pNdjhjVDBaMko3cUJqZkZwM092OG9HU0Y4a0Y1YkVtTmFCNWpSU3BtX3JybGxfYnRTY3NJVkJUM242VVdTY21SZHBFUGxPQmdHUjlmMzRuWkRzSTBBRGVrZkZUZk9HWWh6TjBvZVZDUW1FeDR4Uy15TkczbXNabzZvUW4tOTVmMnJIbFN0SEZRNFlQS3FBelc0YXJpOFdJdUw0d3hGOVA5X1JSUmo5UW05UW94TVhoaXk2d2c2cmctUlhwVHZsM1pwU0YwZndIaWk4TWFuYzB2VEV4bjJhQngzNlhQZUZLWmhzODRlZ0pRSXdCWktpWVJ2SkZRczRKbWJOYmtDNTM1RkRYM00zUmxiOFFtSDdYc01NZUJGd2lrb24zOWZuUjNsOGRiM3BtelE2YnQ4eEMtWUxSZ2E5LUlqWUdCZ3BhYU1lNVVDZw==';
 const TOPIC_NAME = 'TikTokLiveEvent';
 
 const DATA_FILE = path.join(__dirname, 'linked_users.json');
@@ -36,7 +36,6 @@ function saveLinkedUsers() {
 // =============================================================
 let rawTarget = TIKTOK_USERNAME;
 
-// Nếu người dùng nhập dạng URL đầy đủ, tự động trích xuất username ở giữa
 if (rawTarget.includes('tiktok.com/')) {
     const match = rawTarget.match(/@([^/?]+)/);
     if (match) {
@@ -46,7 +45,6 @@ if (rawTarget.includes('tiktok.com/')) {
 
 console.log(`🎯 Đang chuẩn bị kết nối tới kênh TikTok: @${rawTarget}`);
 
-// Khởi tạo kết nối với các tùy chọn giả lập trình duyệt
 const tiktokLiveConnection = new WebcastPushConnection(rawTarget, {
     requestOptions: {
         timeout: 10000,
@@ -86,7 +84,6 @@ tiktokLiveConnection.connect().then(state => {
     console.error('❌ Lỗi kết nối TikTok Live:', err);
 });
 
-// Xử lý sự kiện Thích (Like)
 tiktokLiveConnection.on('like', data => {
     const eventData = {
         type: 'like',
@@ -98,10 +95,8 @@ tiktokLiveConnection.on('like', data => {
     sendToRoblox(eventData);
 });
 
-// Xử lý sự kiện Tặng Quà (Gift)
 tiktokLiveConnection.on('gift', data => {
     if (data.giftType === 1 && !data.repeatEnd) {
-        // Quà chuỗi đang diễn ra
         return;
     }
     const eventData = {
@@ -115,7 +110,6 @@ tiktokLiveConnection.on('gift', data => {
     sendToRoblox(eventData);
 });
 
-// Xử lý sự kiện Bình luận (Chat) để liên kết tài khoản nếu cần
 tiktokLiveConnection.on('chat', data => {
     const msg = data.comment.trim();
     if (msg.startsWith('!link ')) {
@@ -125,4 +119,3 @@ tiktokLiveConnection.on('chat', data => {
         console.log(`🔗 Đã liên kết TikTok @${data.uniqueId} với Roblox ID: ${robloxId}`);
     }
 });
-    
