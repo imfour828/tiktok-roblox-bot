@@ -1,3 +1,36 @@
+require('dotenv').config();
+const { WebcastPushConnection } = require('tiktok-live-connector');
+const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+
+// =============================================================
+// 1. CẤU HÌNH BIẾN MÔI TRƯỜNG & KHỞI TẠO
+// =============================================================
+const TIKTOK_USERNAME = process.env.TIKTOK_USERNAME || 'ten_kenh_tiktok_cua_ban';
+const ROBLOX_UNIVERSE_ID = process.env.ROBLOX_UNIVERSE_ID || 'UNIVERSE_ID_CUA_BAN';
+const ROBLOX_API_KEY = process.env.ROBLOX_API_KEY || 'API_KEY_CUA_BAN';
+const TOPIC_NAME = 'TikTokLiveEvent';
+
+const DATA_FILE = path.join(__dirname, 'linked_users.json');
+let linkedUsers = {};
+
+if (fs.existsSync(DATA_FILE)) {
+    try {
+        linkedUsers = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+        console.log(`📁 Đã nạp ${Object.keys(linkedUsers).length} tài khoản liên kết từ file.`);
+    } catch (e) {
+        linkedUsers = {};
+    }
+}
+
+// Ghi file bất đồng bộ để tránh nghẽn thread
+function saveLinkedUsers() {
+    fs.writeFile(DATA_FILE, JSON.stringify(linkedUsers, null, 2), 'utf8', (err) => {
+        if (err) console.error('❌ Lỗi ghi file linked_users:', err);
+    });
+}
+
 // =============================================================
 // 2. XỬ LÝ URL / USERNAME TIKTOK
 // =============================================================
@@ -13,7 +46,7 @@ if (rawTarget.includes('tiktok.com/')) {
 
 console.log(`🎯 Đang chuẩn bị kết nối tới kênh TikTok: @${rawTarget}`);
 
-// Khởi tạo kết nối với các tùy chọn giả lập trình duyệt để giảm tỷ lệ bị chặn IP cloud
+// Khởi tạo kết nối với các tùy chọn giả lập trình duyệt
 const tiktokLiveConnection = new WebcastPushConnection(rawTarget, {
     requestOptions: {
         timeout: 10000,
@@ -85,7 +118,6 @@ tiktokLiveConnection.on('gift', data => {
 // Xử lý sự kiện Bình luận (Chat) để liên kết tài khoản nếu cần
 tiktokLiveConnection.on('chat', data => {
     const msg = data.comment.trim();
-    // Ví dụ: Nhắn "!link 123456" để liên kết tài khoản Roblox
     if (msg.startsWith('!link ')) {
         const robloxId = msg.split(' ')[1];
         linkedUsers[data.uniqueId] = robloxId;
@@ -93,4 +125,4 @@ tiktokLiveConnection.on('chat', data => {
         console.log(`🔗 Đã liên kết TikTok @${data.uniqueId} với Roblox ID: ${robloxId}`);
     }
 });
-            
+    
