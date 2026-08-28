@@ -1,150 +1,96 @@
-require('dotenv').config();
-const { WebcastPushConnection } = require('tiktok-live-connector');
-const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
-
 // =============================================================
-// 1. CẤU HÌNH BIẾN MÔI TRƯỜNG & KHỞI TẠO
+// 2. XỬ LÝ URL / USERNAME TIKTOK
 // =============================================================
-const TIKTOK_USERNAME = process.env.TIKTOK_USERNAME || 'ten_kenh_tiktok_cua_ban';
-const ROBLOX_UNIVERSE_ID = process.env.ROBLOX_UNIVERSE_ID || 'UNIVERSE_ID_CUA_BAN';
-const ROBLOX_API_KEY = process.env.ROBLOX_API_KEY || 'API_KEY_CUA_BAN';
-const TOPIC_NAME = 'TikTokLiveEvent';
+let rawTarget = TIKTOK_USERNAME;
 
-const DATA_FILE = path.join(__dirname, 'linked_users.json');
-let linkedUsers = {};
-
-if (fs.existsSync(DATA_FILE)) {
-    try {
-        linkedUsers = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-        console.log(`📁 Đã nạp ${Object.keys(linkedUsers).length} tài khoản liên kết từ file.`);
-    } catch (e) {
-        linkedUsers = {};
+// Nếu người dùng nhập dạng URL đầy đủ, tự động trích xuất username ở giữa
+if (rawTarget.includes('tiktok.com/')) {
+    const match = rawTarget.match(/@([^/?]+)/);
+    if (match) {
+        rawTarget = match[1];
     }
 }
 
-// Ghi file bất đồng bộ để tránh nghẽn thread
-function saveLinkedUsers() {
-    fs.writeFile(DATA_FILE, JSON.stringify(linkedUsers, null, 2), 'utf8', (err) => {
-        if (err) console.error('❌ Lỗi ghi file linked_users:', err);
-    });
-}
+console.log(`🎯 Đang chuẩn bị kết nối tới kênh TikTok: @${rawTarget}`);
 
-const userTapBuffer = {};
+// Khởi tạo kết nối với các tùy chọn giả lập trình duyệt để giảm tỷ lệ bị chặn IP cloud
+const tiktokLiveConnection = new WebcastPushConnection(rawTarget, {
+    requestOptions: {
+        timeout: 10000,
+    },
+    clientParams: {
+        app_language: 'vi-VN',
+        device_platform: 'web'
+    }
+});
 
 // =============================================================
-// 2. HÀM GỬI LỆNH LÊN ROBLOX OPEN CLOUD
+// 3. GỬI SỰ KIỆN SANG ROBLOX MESSAGING SERVICE
 // =============================================================
-async function sendToRoblox(robloxUsername, expToAdd) {
+async function sendToRoblox(eventData) {
     const url = `https://apis.roblox.com/messaging-service/v1/universes/${ROBLOX_UNIVERSE_ID}/topics/${TOPIC_NAME}`;
-
-    const payload = {
-        message: JSON.stringify({
-            input: robloxUsername,
-            expToAdd: Number(expToAdd)
-        })
-    };
-
+    
     try {
-        const response = await axios.post(url, payload, {
+        await axios.post(url, {
+            message: JSON.stringify(eventData)
+        }, {
             headers: {
                 'x-api-key': ROBLOX_API_KEY,
                 'Content-Type': 'application/json'
-            },
-            timeout: 10000
+            }
         });
-
-        if (response.status === 200) {
-            console.log(`🚀 [ROBLOX OPEN CLOUD] +${expToAdd} EXP -> ${robloxUsername}`);
-        }
     } catch (error) {
-        console.error(`❌ [LỖI ROBLOX API]`, error.response ? error.response.data : error.message);
+        console.error('❌ Lỗi gửi Open Cloud Roblox:', error.response?.data || error.message);
     }
 }
 
 // =============================================================
-// 3. LẮNG NGHE SỰ KIỆN TIKTOK LIVE
+// 4. LẮNG NGHE SỰ KIỆN TIKTOK LIVE (LIKE, GIFT, CHAT...)
 // =============================================================
-const tiktok = new WebcastPushConnection(TIKTOK_USERNAME);
-
-// A. LỆNH LINK TÀI KHOẢN (!link <ten_roblox>)
-tiktok.on('chat', data => {
-    const comment = data.comment.trim();
-    const tiktokId = data.uniqueId;
-
-    if (comment.startsWith('!link ')) {
-        const parts = comment.split(' ');
-        if (parts.length >= 2) {
-            const robloxUser = parts[1].trim();
-
-            if (robloxUser.length > 0) {
-                linkedUsers[tiktokId] = robloxUser;
-                saveLinkedUsers();
-
-                console.log(`🔗 [LINK THÀNH CÔNG] TikTok @${tiktokId} -> Roblox: ${robloxUser}`);
-                sendToRoblox(robloxUser, 150);
-            }
-        }
-    }
+tiktokLiveConnection.connect().then(state => {
+    console.info(`✅ Đã kết nối thành công tới phòng Livestream ID: ${state.roomId}`);
+}).catch(err => {
+    console.error('❌ Lỗi kết nối TikTok Live:', err);
 });
 
-// B. BẮT SỰ KIỆN TAP MÀN HÌNH (TÍCH LŨY 100 TAPS)
-tiktok.on('like', data => {
-    const tiktokId = data.uniqueId;
-    const robloxUser = linkedUsers[tiktokId];
-
-    if (!robloxUser) return;
-
-    const tapCount = data.likeCount || 1;
-    userTapBuffer[tiktokId] = (userTapBuffer[tiktokId] || 0) + tapCount;
-
-    if (userTapBuffer[tiktokId] >= 100) {
-        const hundredCount = Math.floor(userTapBuffer[tiktokId] / 100);
-        const expGained = hundredCount * 1000;
-
-        console.log(`❤️ [TAP MÀN HÌNH] @${tiktokId} đạt ${hundredCount * 100} taps -> +${expGained} EXP cho ${robloxUser}`);
-
-        sendToRoblox(robloxUser, expGained);
-        userTapBuffer[tiktokId] %= 100;
-    }
+// Xử lý sự kiện Thích (Like)
+tiktokLiveConnection.on('like', data => {
+    const eventData = {
+        type: 'like',
+        username: data.uniqueId,
+        nickname: data.nickname,
+        likeCount: data.likeCount,
+        totalLikeCount: data.totalLikeCount
+    };
+    sendToRoblox(eventData);
 });
 
-// C. BẮT SỰ KIỆN TẶNG QUÀ (SỬA LỖI BỎ SÓT QUÀ ĐƠN)
-tiktok.on('gift', data => {
-    const tiktokId = data.uniqueId;
-    const robloxUser = linkedUsers[tiktokId];
-
-    if (!robloxUser) return;
-
-    // Kiểm tra nếu là quà chuỗi (streak) thì chờ đợt cuối, nếu quà đơn (giftType 0/không streak) thì xử lý ngay
-    const isStreakFinished = data.giftType === 1 ? data.repeatEnd : true;
-
-    if (isStreakFinished) {
-        const giftName = data.giftName ? data.giftName.toLowerCase() : '';
-        const count = data.repeatCount || 1;
-        let totalExp = 0;
-
-        // Quà đặc biệt "Tim đội TikTok" (1 xu -> +30,000 EXP)
-        if (giftName.includes('tim đội') || giftName.includes('team heart') || data.giftId === 5656) {
-            totalExp = 30000 * count;
-            console.log(`🎁 [QUÀ ĐẶC BIỆT] @${tiktokId} tặng Tim Đội x${count} -> +${totalExp} EXP cho ${robloxUser}`);
-        } else {
-            // Quà thường (1 Xu = 2,000 EXP)
-            const coinsPerGift = data.diamondCount || 1;
-            totalExp = coinsPerGift * 2000 * count;
-            console.log(`🎁 [QUÀ THƯỜNG] @${tiktokId} tặng ${data.giftName} (${coinsPerGift} xu) x${count} -> +${totalExp} EXP cho ${robloxUser}`);
-        }
-
-        if (totalExp > 0) {
-            sendToRoblox(robloxUser, totalExp);
-        }
+// Xử lý sự kiện Tặng Quà (Gift)
+tiktokLiveConnection.on('gift', data => {
+    if (data.giftType === 1 && !data.repeatEnd) {
+        // Quà chuỗi đang diễn ra
+        return;
     }
+    const eventData = {
+        type: 'gift',
+        username: data.uniqueId,
+        nickname: data.nickname,
+        giftName: data.giftName,
+        diamondCount: data.diamondCount * data.repeatCount,
+        repeatCount: data.repeatCount
+    };
+    sendToRoblox(eventData);
 });
 
-// =============================================================
-// 4. KẾT NỐI PHÒNG LIVE
-// =============================================================
-tiktok.connect()
-    .then(state => console.log(`✅ Kết nối thành công tới phòng Live ID: ${state.roomId}`))
-    .catch(err => console.error('❌ Lỗi kết nối TikTok Live:', err));
+// Xử lý sự kiện Bình luận (Chat) để liên kết tài khoản nếu cần
+tiktokLiveConnection.on('chat', data => {
+    const msg = data.comment.trim();
+    // Ví dụ: Nhắn "!link 123456" để liên kết tài khoản Roblox
+    if (msg.startsWith('!link ')) {
+        const robloxId = msg.split(' ')[1];
+        linkedUsers[data.uniqueId] = robloxId;
+        saveLinkedUsers();
+        console.log(`🔗 Đã liên kết TikTok @${data.uniqueId} với Roblox ID: ${robloxId}`);
+    }
+});
+            
