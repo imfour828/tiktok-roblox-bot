@@ -45,16 +45,21 @@ if (rawTarget.includes('tiktok.com/')) {
 
 console.log(`🎯 Đang chuẩn bị kết nối tới kênh TikTok: @${rawTarget}`);
 
-// Khởi tạo kết nối với cấu hình tối ưu chống lỗi cloud/signature
+// Khởi tạo kết nối với cấu hình né lỗi Signature
 const tiktokLiveConnection = new WebcastPushConnection(rawTarget, {
     requestOptions: {
-        timeout: 10000,
+        timeout: 15000,
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
     },
     clientParams: {
         app_language: 'vi-VN',
         device_platform: 'web'
     },
-    enableWebsocketUpgrade: true
+    // Thêm các tùy chọn này để bypass cơ chế kiểm tra chữ ký gắt gao của thư viện
+    processInitialData: true,
+    enableExtendedGiftInfo: true
 });
 
 // =============================================================
@@ -83,7 +88,7 @@ async function sendToRoblox(eventData) {
 tiktokLiveConnection.connect().then(state => {
     console.info(`✅ Đã kết nối thành công tới phòng Livestream ID: ${state.roomId}`);
 }).catch(err => {
-    console.error('❌ Lỗi kết nối TikTok Live:', err);
+    console.error('❌ Lỗi kết nối TikTok Live:', err.message || err);
 });
 
 tiktokLiveConnection.on('like', data => {
